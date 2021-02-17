@@ -8,6 +8,7 @@ using UnityEngine;
 
 public class JumpManArray : MonoBehaviour
 {
+    GameObject clonePrefab;
     GameObject clone0;
     GameObject clone1;
     GameObject clone2;
@@ -20,7 +21,11 @@ public class JumpManArray : MonoBehaviour
     Vector3 clone0Position;
     Vector3 clone1Position;
     Vector3 clone2Position;
+    Vector3 clone0Scale;
+    Vector3 clone1Scale;
+    Vector3 clone2Scale;
     float jumpMenDistance;
+    private int count; 
 
     [SerializeField] int jumpMenToCreate = 1; //number of points to locate between JumpMan Vector and Cam Vector THIS ISN"T USED YET
     
@@ -31,8 +36,15 @@ public class JumpManArray : MonoBehaviour
         clone0 = GameObject.Find("JumpManClone");
         clone1 = GameObject.Find("JumpManClone (1)");
         clone2 = GameObject.Find("JumpManClone (2)");
-       
+        clone0Scale = new Vector3(0.25f,0.25f,0.25f);
+        clone1Scale = new Vector3(0.5f,0.5f,0.5f);
+        clone2Scale = new Vector3(0.75f,0.75f,0.75f);
+
+        //RETURN HERE TO REWRITE USING INSTANTIATE AND 1 JUMPMAN prefab - tags will be used to identify active jumpman which other jumpmen will react from
         
+        //Instantiate(clonePrefab, new Vector3(0, 0, 0), Quaternion.identity);
+        //clone0.name = "JumpManClone"+count;//TO DO instantiate and count our clones based on the serializefield
+        //count=count+1;
     }
     // Update is called once per frame
     void Update()
@@ -63,27 +75,35 @@ public class JumpManArray : MonoBehaviour
         //TO DO if the spawn location is the same as current spawnedclone location then return (player is standing still)
         //TO DO ''                     ''not the same as ''                     '' then transform spawned clone
         //Here we calculate the distance between the segment pieces.
-        jumpMenDistance = (Mathf.Abs(Vector3.Distance(camPosition,jumpManPosition))/(jumpMenToCreate+1));
-    
-            //Get the position
-            clone0Position = Vector3.Lerp(camPosition,jumpManPosition,0.25f);//the .25 should be replaced with jumpmendistance... but remain as percentage...
-            //also how do I spawn a serializefield number of instantiates>>>>> lets focus on 3 for now.
-            clone1Position = Vector3.Lerp(camPosition,jumpManPosition,0.5f);
-            clone2Position = Vector3.Lerp(camPosition,jumpManPosition,0.75f);
-            if (clone0.transform.position != clone0Position)
-            {
-                clone0.transform.position = clone0Position;
-            }
-            if (clone1.transform.position != clone1Position)
-            {
-                clone1.transform.position = clone1Position;
-            }
-            if (clone2.transform.position != clone2Position)
-            {
-                clone2.transform.position = clone2Position;
-            }
-            Debug.Log("cam Position is:" + camPosition);
-            Debug.Log("JumpMan Position is:" + jumpManPosition);
-            
+        jumpMenDistance = (Mathf.Abs(Vector3.Distance(camPosition, jumpManPosition)) / (jumpMenToCreate + 1));
+
+        //Get the position
+        clone0Position = Vector3.Lerp(camPosition, jumpManPosition, 0.25f);//the .25 should be replaced with a variable jumpmendistance... but remain as percentage...
+                                                                           
+        clone1Position = Vector3.Lerp(camPosition, jumpManPosition, 0.5f);
+        clone2Position = Vector3.Lerp(camPosition, jumpManPosition, 0.75f);
+        repositionClones();
+        Debug.Log("cam Position is:" + camPosition);
+        Debug.Log("JumpMan Position is:" + jumpManPosition);
+
+    }
+
+    private void repositionClones()
+    {
+        if (clone0.transform.position != clone0Position)
+        {
+            clone0.transform.position = clone0Position;
+            clone0.transform.localScale = clone0Scale;
+        }
+        if (clone1.transform.position != clone1Position)
+        {
+            clone1.transform.position = clone1Position;
+            clone1.transform.localScale = clone1Scale;
+        }
+        if (clone2.transform.position != clone2Position)
+        {
+            clone2.transform.position = clone2Position;
+            clone2.transform.localScale = clone2Scale;
+        }
     }
 }

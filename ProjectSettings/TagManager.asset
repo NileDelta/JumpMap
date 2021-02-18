@@ -6,6 +6,9 @@ TagManager:
   tags:
   - Obstruction
   - ActiveSurface
+  - ActiveJM
+  - NullJM
+  - SearchingJM
   layers:
   - Default
   - TransparentFX

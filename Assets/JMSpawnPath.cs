@@ -34,9 +34,9 @@ public class JMSpawnPath : MonoBehaviour
         JMPos = GameObject.Find("JumpMan").transform.position;
         JMDirection = CamPos-JMSMPos;
         ray = new Ray(CamPos, JMDirection);
-        Debug.Log("CamPos is"+ CamPos);
-        Debug.Log("JMSMPos is" + JMSMPos);
-        Debug.Log("JMPos is" + JMPos);
+        Debug.Log(JMDirection);
+        //Debug.Log("JMSMPos is" + JMSMPos);
+        //Debug.Log("JMPos is" + JMPos);
         RaycastHit ProbeDisA;
 
         if (Physics.Raycast (ray, out ProbeDisA))

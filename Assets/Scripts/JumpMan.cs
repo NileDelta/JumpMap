@@ -11,6 +11,7 @@ public class JumpMan : MonoBehaviour
     [SerializeField] int numberOfJM;
     int currentCount; //this value is used to name cloned JumpMan and prevent count exceeding numberOfJM
     int distanceBetweenFirstJM; //the distance between following JMs will grow logorithmically until numberOfJM is satisfied
+        //use this value with relation to the numberOfJM value to calculate the total distance of the spawn path and use real math to find vector value for Lerp calc that references this number NOT JM0 location and then divide that line in a logorithmic manner
     GameObject jumpMan0;
     GameObject SearchingJMs;
     GameObject NullJMs;

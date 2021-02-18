@@ -32,7 +32,6 @@ public class JumpManArray : MonoBehaviour
     void Start()
     {
         rb = GetComponent<Rigidbody>();
-        camPosition = GameObject.Find("Camera").transform.position;
         clone0 = GameObject.Find("JumpManClone");
         clone1 = GameObject.Find("JumpManClone (1)");
         clone2 = GameObject.Find("JumpManClone (2)");
@@ -52,11 +51,38 @@ public class JumpManArray : MonoBehaviour
         moveRight();
         moveLeft();
         jumping();
-        jumpManPosition = transform.position;
+
+        correctCamCoords();
         traceJumpMen();
+        rayCastObstructions();
+        repositionClones();
         
-        
+        jumpManPosition = transform.position;
+        Debug.Log(jumpManPosition);
+
     }
+
+    private static void rayCastObstructions()
+    {
+        //RaycastHit hit;
+        //var ray = Camera.main.ScreenPointToRay(jumpManPosition);
+        
+        //if (Physics.Raycast(ray, out hit))
+        //{
+        //    var selection = hit.transform;
+        //    var selectionRenderer = selection.tag;
+        //    Debug.Log(selectionRenderer);
+        //}
+    }
+
+    private void correctCamCoords()
+    {
+        if (camPosition != GameObject.Find("Camera").transform.position)
+        {
+            camPosition = GameObject.Find("Camera").transform.position;
+        }
+    }
+
     void moveRight(){
         if (Input.GetKey(KeyCode.A)){
             rb.AddRelativeForce(Vector3.right * jumpManSpeed * Time.deltaTime);}
@@ -76,7 +102,7 @@ public class JumpManArray : MonoBehaviour
         //TO DO ''                     ''not the same as ''                     '' then transform spawned clone
         //Here we calculate the distance between the segment pieces.
         jumpMenDistance = (Mathf.Abs(Vector3.Distance(camPosition, jumpManPosition)) / (jumpMenToCreate + 1));
-
+        
         //Get the position
         clone0Position = Vector3.Lerp(camPosition, jumpManPosition, 0.25f);//the .25 should be replaced with a variable jumpmendistance... but remain as percentage...
                                                                            
@@ -88,7 +114,7 @@ public class JumpManArray : MonoBehaviour
 
     }
 
-    private void repositionClones()
+    void repositionClones()
     {
         if (clone0.transform.position != clone0Position)
         {

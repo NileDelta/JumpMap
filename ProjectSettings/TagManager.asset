@@ -9,6 +9,7 @@ TagManager:
   - ActiveJM
   - NullJM
   - SearchingJM
+  - Camera
   layers:
   - Default
   - TransparentFX

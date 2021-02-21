@@ -13,7 +13,7 @@ public class raycastProbeTest : MonoBehaviour
         // jM1 will be repositioned according to probe rules defined bellow, jM0 will have his position updated to jM1's screen position in realtime.
 
     
-    [SerializeField] float probeSeparation = 0.01f; //use this value with camPos to dertermine new origins for rays probeA, probeC, where probeB origin = camera position
+    [SerializeField] float probeSeparation = 0.01f;
     [SerializeField] float thresholdDis = 999f;
     [SerializeField] float jMSpeed = 5f;
     [SerializeField] float physicsScaling = 2f;
@@ -44,6 +44,7 @@ public class raycastProbeTest : MonoBehaviour
     float jMzMov;
     Rigidbody jMrb;
     bool jMFalling;
+    bool fallingCheck; //use this bool at the if statements to condition if jM is in the middle of falling or not. to make him teleportable.
 
 
     void Start()
@@ -54,20 +55,12 @@ public class raycastProbeTest : MonoBehaviour
         jMrb = jumpMan1.GetComponent<Rigidbody>();
         jumpMan1.transform.position = (jumpMan0.transform.position+new Vector3(0,0,0.1f));
         jMFalling = true;
-        //MOVE jM1 1mm (along z Value) away from jM0 and let fall - this will begin earching for horizontals to place jM1 into the landscape.
+        //jM1 will spawn 1cm behind jM0 and begin searching for new landings.
     }
 
     void Update()
     {
-        //Make jM0 spawn between jM1 @1m away from Camera at all times.
-        //find vectorline between jM1Pos and camPos, find vector 1m away from camPos along this vectorline.
-        //jM0 position updated to match jM1: jumpMan0.transform.position == jumpMan1.transform.position-hitBinfo.point => need to consider this calculation
-        //ADD probeSeperation so jM0/jM1 spawn on hitBInfo.point+probeseparation and probe still tests jM's feet.
-
-        //update jM1 scale depending on jM0 position and forced perspective calculation.
-
-        //if jM1 is falling set a bool to set jM1 into a quantum state ready to be teleported: portable = true/false
-
+        
         MoveJumpMan();
         UpdatePositions();
         CreateRays();
@@ -114,7 +107,7 @@ public class raycastProbeTest : MonoBehaviour
         jMxMov = Input.GetAxisRaw("Horizontal");
         jMzMov = Input.GetAxisRaw("Vertical");
         jMrb.velocity = (new Vector3(jMxMov, jMrb.velocity.y, jMzMov) * jMSpeed * Mathf.Pow(scalingRatio,physicsScaling)) * Time.deltaTime;
-        //Change vectors to perpendicular to the normal provided by surface hitBInfo
+        //TO DO: Change vectors to perpendicular to the normal provided by surface hitBInfo
         if (jMFalling == true) {
             jMrb.useGravity = true; }
         else {jMrb.useGravity = false;}
@@ -123,60 +116,44 @@ public class raycastProbeTest : MonoBehaviour
     void ProbeStatments()
     {
         //ADD IF jMFalling = True, set gravity on and allow JM1 to be teleported (also referred to 'portable' later in notes)
+
+                //****Flipping GRAVITY is NOT the solution. Lets create a game skeleton after teleporting state works.****
+
+        //ADD Deltas to distances so we can compare AB to BC. if deltas are equal, staring at a flat surface(face)
+
         if (probeADis == probeBDis && probeBDis == probeCDis && probeADis>thresholdDis) {
-            //staring off into space (
             jMFalling = true; // may have special conditions needed for future code
             Debug.Log("staring off into space");
         } else if (probeADis == probeBDis) { //check A is equal to B (hitting a wall)
             if (probeBDis == probeCDis) {
-                //staring at a flat vertical plane (ACTION move jM0 down (with gravity in the future) to find obstructions)
                 Debug.Log("This is a flat plane");
                 jMFalling = true; 
             } else if (probeBDis > probeCDis) {
-                //staring at the botton wall edge (ACTION nothing, jM1 can exist but will likely get bumped forward a bit from wall collision(autoscaler should adjust size and rb conditions))    
                 Debug.Log("This is the bottom of a wall");
                 jMFalling = false;
-            } else {
-                //staring at the bottom edge of a cantalevered obstruction (ACTION move jM0 down (with gravity in the future) to find obstructions)
+            } else { //probeBDis < probeCDis
                 Debug.Log("This is the bottom edge of a protrusion");
-                jMFalling = true; }
-        } else if (probeADis > probeBDis) { //check A is father than B
-            if (probeBDis == probeCDis)
-            {
-                //staring at top edge of a wall (ACTION nothing, jM1 can exist here)
+                jMFalling = true; 
+            }
+        } else if (probeADis > probeBDis) {
+            if (probeBDis == probeCDis) {
                 Debug.Log("This is the top of a Wall or Object");
                 jMFalling = false;
-            } else if (probeBDis > probeCDis)
-            {
-                //staring at surface top (ACTION nothing, jM1 can exist here)
-                Debug.Log("This is the top of a surface");
+            } else if (probeBDis > probeCDis) {
+                Debug.Log("This is the top of a surface"); //walking condition change in this statement so rb vector forces apply perpendicular to dumpman orientation (=world.y)
                 jMFalling = false;
-            }
-            else
-            {
-                //staring at a line (ACTION nothing, jM1 can exist on a line)
+            } else { //probeBDis < probeCDis
                 Debug.Log("This is a thin horizontal (a wire perhaps?)");
                 jMFalling = false;
             }
-        }
-        else if (probeADis < probeBDis) //check A is closer than B
-        {
-            if (probeBDis == probeCDis)
-            {
-                //staring at top of wall adjoined to cantilever (ACTION move jM0 down (with gravity in the future) to find obstructions))
+        } else if (probeADis < probeBDis) {
+            if (probeBDis == probeCDis) {
                 Debug.Log("This is the top of a wall joined to a ceiling");
                 jMFalling = true;
-            }
-            else if (probeBDis > probeCDis)
-            {
-                //this is a relief... literally. Not sure what to do with this yet but would be cool to allow jumpman to use negative space as a 'hardedge' or line to walk on
-                //for now (ACTION nothing, assume obstructions below and let jM0 down)
+            } else if (probeBDis > probeCDis) {
                 Debug.Log("This is a relief");
-                jMFalling = true; //for now
-            }
-            else
-            {
-                //staring at underside of surface (ACTION move jM0 down to find obstructions)
+                jMFalling = true; //TO DO: how can JumpMan exist in negative space? is there a third 2D JumpMan that the user can play with in special conditions?
+            } else {//probeBDis < probeCDis
                 Debug.Log("This is the bottom of a surface");
                 jMFalling = true;
             }
@@ -199,14 +176,13 @@ public class raycastProbeTest : MonoBehaviour
     void PlaceJM0()
     {
         jM1Dis = Vector3.Distance(camPos,jM1Pos);
-        //find new vector3 location to transform.position jM0PosTest to.
         scalingRatio = 1/(jM1Dis);
         jumpMan0.transform.position = Vector3.Lerp(camPos,jM1Pos,scalingRatio); 
         jumpMan1.transform.localScale = new Vector3(1/scalingRatio,1/scalingRatio,1/scalingRatio);
     }
     void castRayB()
     {
-        if (Physics.Raycast(rayB, out hitBInfo, thresholdDis, Obstacles)) { //may need to modify the threshold dis calculation here
+        if (Physics.Raycast(rayB, out hitBInfo, thresholdDis, Obstacles)) { 
             Debug.DrawLine(rayB.origin, hitBInfo.point, Color.red);
             probeBDis = Vector3.Distance(rayB.origin, hitBInfo.point);
         } else { //probe only searches for objects on the Obstruction LayerMask. 

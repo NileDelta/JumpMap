@@ -104,13 +104,13 @@ public class raycastProbeTest : MonoBehaviour
 
     void MoveJumpMan()
     {
-        jMxMov = Input.GetAxisRaw("Horizontal");
+        jMxMov = Input.GetAxisRaw("Horizontal"); //Consider these as multipliers for real 3D world directions
         jMzMov = Input.GetAxisRaw("Vertical");
         jMrb.velocity = (new Vector3(jMxMov, jMrb.velocity.y, jMzMov) * jMSpeed * Mathf.Pow(scalingRatio,physicsScaling)) * Time.deltaTime;
-        //TO DO: Change vectors to perpendicular to the normal provided by surface hitBInfo
+        //TO DO: Change vectors to ?perpendicular? to the normal provided by surface hitBInfo
         if (jMFalling == true) {
-            jMrb.useGravity = true; }
-        else {jMrb.useGravity = false;}
+            jMrb.useGravity = true; 
+        } else {jMrb.useGravity = false; }
     }
 
     void ProbeStatments()

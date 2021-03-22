@@ -959,11 +959,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 2417967153972374570, guid: 3fcc73ad99dc545488d97a7d3df5c930, type: 3}
       propertyPath: slowFall
-      value: 0.01
+      value: 0.02
       objectReference: {fileID: 0}
     - target: {fileID: 2417967153972374570, guid: 3fcc73ad99dc545488d97a7d3df5c930, type: 3}
       propertyPath: probeOffset
-      value: 0.02
+      value: 0.05
       objectReference: {fileID: 0}
     - target: {fileID: 2417967153972374570, guid: 3fcc73ad99dc545488d97a7d3df5c930, type: 3}
       propertyPath: Finish.m_Bits

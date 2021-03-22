@@ -6,16 +6,32 @@ using UnityEngine;
 // Jumpman Mover is the physics handler for the JumpMan Character. 
 // His actions and animations are translated from values altered by this script such as JumpMan's Scale, speed, and orientation.
 // The Mover object is fixed to the vehicle, and the probe rays anchor to the camera view and the Mover object to project the JumpMan character.
+
+
+//STATE CONDITIONS
+    
+public enum Mover_State { Rising, Falling, Grounded, Crouched }
+    
+public enum Grounding_State { Nothing, Obstruction, Object, Respawn, Finish }
+
+
 public class JumpManMover : MonoBehaviour
 {
-    [SerializeField] float speed = .1f;
-    [SerializeField] float drawDis = 1000f;
-    [SerializeField] float probeOffset = .01f;
-    [SerializeField] float slowFall = .01f;
+    [SerializeField] float speed = .1f; // JumpMan's Speed.
+    [SerializeField] float drawDis = 1000f; // Distance JumpMan can probe the landscape.
+    [SerializeField] float probeOffset = .01f; // Distance between rayA and rayC, and rayB and rayC.
+    [SerializeField] float slowFall = .01f; // Force applied against gravity in certain conditions.
+    [SerializeField] float waitTime = 1f; // Time to delay JumpMan's movement at the start of the game.
 
     Rigidbody rb;
     Camera cam; 
     GameObject vehicle;
+
+    //STATE SYSTEMS
+    private Mover_State mover_State; // Rising, Falling, Grounded, Crouched
+    private Mover_State prevMover_State;
+    private Grounding_State grounding_State; // Nothing, Obstruction, Object, Respawn, Finish
+    private Grounding_State prevGrounding_State;
 
     
     //VECTORS
@@ -45,23 +61,7 @@ public class JumpManMover : MonoBehaviour
     public LayerMask Respawn;
     public LayerMask Finish;
 
-    //STATE CONDITIONS
     
-    public enum Mover_State
-    {
-        Rising,
-        Falling,
-        Grounded,
-        Crouched
-    }
-    public enum GroundingProbe_State //Same as Unity Object Tag Names.
-    {
-        Untagged,
-        Obstruction,
-        Object,
-        Respawn,
-        Finish
-    }
 
 //==============================================================================================================================================================
     void Start()
@@ -70,6 +70,13 @@ public class JumpManMover : MonoBehaviour
         rb = GetComponent<Rigidbody>();
         vehicle = GameObject.Find("Vehicle");
         cam = GameObject.Find("Camera").GetComponent<Camera>();
+        rb.useGravity = false;
+        Invoke ("WaitTime", waitTime);
+    }
+
+    private void WaitTime()
+    {
+        mover_State = Mover_State.Falling;
     }
 
     void FixedUpdate()
@@ -81,13 +88,12 @@ public class JumpManMover : MonoBehaviour
 
     void Update() 
     {
-        probeOffsetVector = new Vector3(0,probeOffset,0);
+        probeOffsetVector = new Vector3(0,probeOffset,0); // This value may become hard coded.
         NavProbe(); //Used to evaluate the immediate conditions that the player can use to change jumpman pos, EX: moving up and down stairs, taking large steps or hops laterally or vertically
+        StateConditions();
         UpdateMoverPos();
         UpdateJumpManPos();
-        SetState();
-        
-       
+                       
     }
     private void MoverInput()
     {
@@ -127,7 +133,7 @@ public class JumpManMover : MonoBehaviour
             }
 
         //THIRD, if "Falling" and rayC.hit = platform,  gravity velocity should be halved - simulating falling through an object but also reducing velocity to prepare to land.    
-            if (Physics.Raycast(rayB, out hitB, drawDis, Platform) && hitC.collider == null)
+            if (Physics.Raycast(rayB, out hitB, drawDis, Platform) && rb.useGravity == true)
                 // TO DO    - ADD && is "Falling" 
             {
                 SlowFalling();
@@ -187,10 +193,38 @@ public class JumpManMover : MonoBehaviour
             //If Grounded, JumpManPos is set to hit pos.
             //If NOT Grounded, JumpManPos is 1m from Camera. (Mover remains between and falls due to gravity, probe is 'scanning')
     }
-    private void SetState()
+    private void StateConditions()
     {
-        
+        if (mover_State != prevMover_State)
+        {
+            prevMover_State = mover_State;
+            MoverStates();
+        }
 
-    
+    }
+
+    private void MoverStates() //condition gravity and animations
+    {
+        if (mover_State == Mover_State.Rising)
+        {
+            //turn gravity on
+        }
+        if (mover_State == Mover_State.Falling)
+        {
+            //turn gravity on
+            //look for probe condition and input conditions to land somewhere...
+            //if player holds buttons, fall faster.
+            //if player holds combination, they ignore landing entirely.
+        }
+        if (mover_State == Mover_State.Grounded)
+        {
+            //turn gravity off
+            //look for player input to update things?
+        }
+        if (mover_State == Mover_State.Crouched)
+        {
+            //turn gravity off?
+            //
+        }
     }
 }

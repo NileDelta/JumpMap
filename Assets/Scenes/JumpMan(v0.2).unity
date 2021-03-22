@@ -953,6 +953,14 @@ PrefabInstance:
   m_Modification:
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 2417967153437591894, guid: 3fcc73ad99dc545488d97a7d3df5c930, type: 3}
+      propertyPath: m_Layer
+      value: 10
+      objectReference: {fileID: 0}
+    - target: {fileID: 2417967153972374569, guid: 3fcc73ad99dc545488d97a7d3df5c930, type: 3}
+      propertyPath: m_Layer
+      value: 10
+      objectReference: {fileID: 0}
     - target: {fileID: 2417967153972374570, guid: 3fcc73ad99dc545488d97a7d3df5c930, type: 3}
       propertyPath: speed
       value: 0.6

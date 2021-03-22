@@ -11,16 +11,15 @@ using UnityEngine;
 //STATE CONDITIONS
     
 public enum Mover_State { Rising, Falling, Grounded, Crouched }
+
     
-public enum Grounding_State { Nothing, Obstruction, Object, Respawn, Finish }
-
-
 public class JumpManMover : MonoBehaviour
 {
     [SerializeField] float speed = .1f; // JumpMan's Speed.
-    [SerializeField] float drawDis = 1000f; // Distance JumpMan can probe the landscape.
+    [SerializeField] float drawDis = Mathf.Infinity; // Distance JumpMan can probe the landscape.
     [SerializeField] float probeOffset = .01f; // Distance between rayA and rayC, and rayB and rayC.
     [SerializeField] float slowFall = .01f; // Force applied against gravity in certain conditions.
+    // TO DO    - Normalize this value and insert as a percentage to multiply velocity.y to.
     [SerializeField] float waitTime = 1f; // Time to delay JumpMan's movement at the start of the game.
 
     Rigidbody rb;
@@ -30,9 +29,6 @@ public class JumpManMover : MonoBehaviour
     //STATE SYSTEMS
     private Mover_State mover_State; // Rising, Falling, Grounded, Crouched
     private Mover_State prevMover_State;
-    private Grounding_State grounding_State; // Nothing, Obstruction, Object, Respawn, Finish
-    private Grounding_State prevGrounding_State;
-
     
     //VECTORS
     Vector3 moverPos;
@@ -71,9 +67,9 @@ public class JumpManMover : MonoBehaviour
         vehicle = GameObject.Find("Vehicle");
         cam = GameObject.Find("Camera").GetComponent<Camera>();
         rb.useGravity = false;
+        mover_State = Mover_State.Grounded;
         Invoke ("WaitTime", waitTime);
     }
-
     private void WaitTime()
     {
         mover_State = Mover_State.Falling;
@@ -84,13 +80,15 @@ public class JumpManMover : MonoBehaviour
         MoverInput();
         UpdatePositions();
         GroundingProbe();
+        StateConditions();
+        
     }
 
     void Update() 
     {
         probeOffsetVector = new Vector3(0,probeOffset,0); // This value may become hard coded.
         NavProbe(); //Used to evaluate the immediate conditions that the player can use to change jumpman pos, EX: moving up and down stairs, taking large steps or hops laterally or vertically
-        StateConditions();
+        
         UpdateMoverPos();
         UpdateJumpManPos();
                        
@@ -109,32 +107,33 @@ public class JumpManMover : MonoBehaviour
         camPos = cam.transform.position;
         moverPos = gameObject.transform.position;
     }
-    public void GroundingProbe()
+    private void GroundingProbe()
     {
         // TO DO
+            int layerMask = 1 << 10;
+            layerMask = ~layerMask; // NOT USING BUILT IN LAYER NAMES. Rays detect all objects except layerMask 10 "Player"
             rayC = new Ray(camPos, (moverPos - camPos)); //Center Ray
-            rayA = new Ray((camPos+probeOffsetVector), rayC.direction);
+            Physics.Raycast(rayC, out hitC, drawDis, layerMask); Debug.Log(hitC.collider.gameObject.name);
+            rayA = new Ray((camPos+probeOffsetVector), rayC.direction); //how to make the probe offset extrude from a different angle?????
+            Physics.Raycast(rayA, out hitA, drawDis, layerMask); Debug.Log(hitA.collider.gameObject.name);
             rayB = new Ray((camPos-probeOffsetVector), rayC.direction);
-            
-        
-        //FIRST, no sense checking anything if that hit is a death.    
-            if (Physics.Raycast(rayC, out hitC, drawDis, Respawn)) 
+            Physics.Raycast(rayB, out hitB, drawDis, layerMask); Debug.Log(hitB.collider.gameObject.name);
+                  
+        //FIRST, Is JumpMan's position invalid?    
+        if (Physics.Raycast(rayC, out hitC, drawDis, Respawn))// TO DO - Add check if JumpMan is not visable but should be 
             {
                 gameObject.transform.position = start; 
-                // TO DO - set state to "Falling"
+                mover_State = Mover_State.Falling;
             }
 
-        //SECOND, no sense checking if the player doesn't want to land or be grounded. This check can dislodge them.
-            if (verMov < 0 && Input.GetMouseButtonDown(0)) 
+        //SECOND, If the player doesn't want to land or be grounded. This check can dislodge them.
+        if (verMov < 0 && Input.GetMouseButtonDown(0)) // TO DO - set this mouse input to a value that times out.
             {
-                rb.useGravity = true; 
-                // TO DO    - set state to "Falling"
-                //          - make sure no further operations for the grounding probe work while this input combination is active.
+                mover_State = Mover_State.Falling; // This check affectively disables grounding probe if true.
             }
-
-        //THIRD, if "Falling" and rayC.hit = platform,  gravity velocity should be halved - simulating falling through an object but also reducing velocity to prepare to land.    
-            if (Physics.Raycast(rayB, out hitB, drawDis, Platform) && rb.useGravity == true)
-                // TO DO    - ADD && is "Falling" 
+        
+        //THIRD, should JumpMan be slow falling? If so, gravity velocity should be halved - simulating falling through an object but also reducing velocity to prepare to land.    
+        if (Physics.Raycast(rayB, out hitB, drawDis, Platform) && mover_State == Mover_State.Falling)
             {
                 SlowFalling();
                 Debug.DrawRay(rayB.origin, rayC.direction, Color.magenta);
@@ -142,36 +141,27 @@ public class JumpManMover : MonoBehaviour
             }
 
         //FOURTH, Grounding
-            if (Physics.Raycast(rayC, out hitC, drawDis, Platform))
+        if (mover_State == Mover_State.Falling && Physics.Raycast(rayC, out hitC, drawDis, Platform) //Is JM falling & does rayC hit a Platform?
+            || Physics.Raycast(rayC, out hitC, drawDis, Platform) && hitC.distance-hitB.distance < hitA.distance-hitC.distance //Does rayC hit a platform and is it the top of a ledge?
+            || Physics.Raycast(rayC, out hitC, drawDis, Platform) && hitC.distance > hitA.distance && hitC.distance > hitB.distance) //Does rayC hit a platform and is it a wire?
             {
-                rb.useGravity = false;
-                Debug.DrawRay(rayC.origin, rayC.direction, Color.green);
-                Debug.Log("Grounded!");
+                mover_State = Mover_State.Grounded;
+                Debug.DrawRay(rayB.origin, rayC.direction, Color.red);
             }
         
-        //FIFTH, after all those checks, assume jumpMan is "Falling"
-            else
-            {
+        //FIFTH, if these probe conditions are ever met, he should be falling.
+        if (mover_State == Mover_State.Grounded && hitC.collider == null
+            ||Mathf.Approximately(hitA.distance-hitC.distance, hitC.distance-hitB.distance))
+        {
+            mover_State = Mover_State.Falling;
+        }
 
-            //SET ENUM GROUNDINGPROBE STATE based on hitobject tag.
-                rb.useGravity = true;
-                Debug.DrawRay(rayC.origin,rayC.direction,Color.yellow);
-
-            //Compare hit value for B,
-            // IF hitobject layer = sill, reset Jumpman else...
-
-            //Cast Probe A and C
-            //Compare hit distances, define edge_state and condition JumpManPos.
-
-            //if probe is invalid, jumpman is NOT grounded and Mover has gravity.
-            //JumpMan DOES NOT HAVE PHYSICS! probes indicate his behaviour.
-            }
-        
+          
     }
 
     private void SlowFalling()
     {
-        rb.AddForce(0, slowFall, 0);
+        rb.AddRelativeForce(new Vector3(0, -rb.velocity.y/2, 0));
     }
 
     private void NavProbe()
@@ -201,30 +191,31 @@ public class JumpManMover : MonoBehaviour
             MoverStates();
         }
 
+
     }
 
     private void MoverStates() //condition gravity and animations
     {
-        if (mover_State == Mover_State.Rising)
-        {
-            //turn gravity on
-        }
-        if (mover_State == Mover_State.Falling)
-        {
-            //turn gravity on
-            //look for probe condition and input conditions to land somewhere...
-            //if player holds buttons, fall faster.
-            //if player holds combination, they ignore landing entirely.
-        }
         if (mover_State == Mover_State.Grounded)
         {
-            //turn gravity off
-            //look for player input to update things?
+            rb.useGravity = false;
+            Debug.Log("current state is Grounded");
         }
         if (mover_State == Mover_State.Crouched)
         {
-            //turn gravity off?
-            //
+            rb.useGravity = false;
+            Debug.Log("current state is Crouched");
         }
+        if (mover_State == Mover_State.Rising)
+        {
+            rb.useGravity = true;
+            Debug.Log("current state is Rising");
+        }
+        if (mover_State == Mover_State.Falling)
+        {
+            rb.useGravity = true;
+            Debug.Log("current state is Falling");
+        }
+        
     }
 }

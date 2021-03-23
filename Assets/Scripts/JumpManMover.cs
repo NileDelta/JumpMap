@@ -18,7 +18,8 @@ public class JumpManMover : MonoBehaviour
     [SerializeField] float speed = .1f; // JumpMan's Speed.
     [SerializeField] float drawDis = Mathf.Infinity; // Distance JumpMan can probe the landscape.
     [SerializeField] float probeOffset = .01f; // Distance between rayA and rayC, and rayB and rayC.
-    [SerializeField] float slowFall = .01f; // Force applied against gravity in certain conditions.
+    
+    //[SerializeField] float slowFall = .01f; // Force applied against gravity in certain conditions.
     // TO DO    - Normalize this value and insert as a percentage to multiply velocity.y to.
     [SerializeField] float waitTime = 1f; // Time to delay JumpMan's movement at the start of the game.
 
@@ -39,6 +40,7 @@ public class JumpManMover : MonoBehaviour
 
     //RAYS & RAYCASTHITS
     Ray rayC;
+    RaycastHit hitR; //Reset
     RaycastHit hitC;
     Ray rayA;
     RaycastHit hitA;
@@ -112,15 +114,26 @@ public class JumpManMover : MonoBehaviour
         // TO DO
             int layerMask = 1 << 10;
             layerMask = ~layerMask; // NOT USING BUILT IN LAYER NAMES. Rays detect all objects except layerMask 10 "Player"
-            rayC = new Ray(camPos, (moverPos - camPos)); //Center Ray
-            Physics.Raycast(rayC, out hitC, drawDis, layerMask); Debug.Log(hitC.collider.gameObject.name);
-            rayA = new Ray((camPos+probeOffsetVector), rayC.direction); //how to make the probe offset extrude from a different angle?????
-            Physics.Raycast(rayA, out hitA, drawDis, layerMask); Debug.Log(hitA.collider.gameObject.name);
-            rayB = new Ray((camPos-probeOffsetVector), rayC.direction);
-            Physics.Raycast(rayB, out hitB, drawDis, layerMask); Debug.Log(hitB.collider.gameObject.name);
-                  
+
+            //THESE RAYS TO BE REPLACED BY BOXCASTS
+
+            Physics.BoxCast( moverPos , new Vector3(.2f,.1f,.01f) , (moverPos - camPos) , out hitC , cam.transform.rotation , drawDis , layerMask );
+            Physics.BoxCast( (moverPos + probeOffsetVector) , new Vector3(.2f,.1f,.01f) , (moverPos - camPos) , out hitA , cam.transform.rotation , drawDis , layerMask );
+            Physics.BoxCast( (moverPos - probeOffsetVector) , new Vector3(.2f,.1f,.01f) , (moverPos - camPos) , out hitB , cam.transform.rotation , drawDis , layerMask );
+            if (hitC.distance < drawDis)
+            {
+                Debug.DrawRay(camPos,hitC.point-camPos,Color.yellow);
+                Debug.DrawRay(camPos+probeOffsetVector,hitA.point-camPos,Color.yellow);
+                Debug.DrawRay(camPos-probeOffsetVector,hitB.point-camPos,Color.yellow);
+            }  
+            else
+            {
+                Debug.DrawRay(camPos,moverPos-camPos,Color.red);
+            }
+                    
+            
         //FIRST, Is JumpMan's position invalid?    
-        if (Physics.Raycast(rayC, out hitC, drawDis, Respawn))// TO DO - Add check if JumpMan is not visable but should be 
+        if (Physics.Raycast(new Ray(camPos, (moverPos - camPos) ), out hitR, drawDis, Respawn))// TO DO - change this to screen on point check within borders... something to do with comparing rotation angles.
             {
                 gameObject.transform.position = start; 
                 mover_State = Mover_State.Falling;
@@ -141,9 +154,10 @@ public class JumpManMover : MonoBehaviour
             }
 
         //FOURTH, Grounding
-        if (mover_State == Mover_State.Falling && Physics.Raycast(rayC, out hitC, drawDis, Platform) //Is JM falling & does rayC hit a Platform?
-            || Physics.Raycast(rayC, out hitC, drawDis, Platform) && hitC.distance-hitB.distance < hitA.distance-hitC.distance //Does rayC hit a platform and is it the top of a ledge?
-            || Physics.Raycast(rayC, out hitC, drawDis, Platform) && hitC.distance > hitA.distance && hitC.distance > hitB.distance) //Does rayC hit a platform and is it a wire?
+        if (hitC.collider.gameObject.layer == Platform && 
+                (  mover_State == Mover_State.Falling 
+                || hitC.distance-hitB.distance < hitA.distance-hitC.distance //Does rayC hit a platform and is it the top of a ledge?
+                || hitC.distance > hitA.distance && hitC.distance > hitB.distance )) //JM on a Wire
             {
                 mover_State = Mover_State.Grounded;
                 Debug.DrawRay(rayB.origin, rayC.direction, Color.red);

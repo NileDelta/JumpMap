@@ -25,15 +25,31 @@ public class JumpManMover : MonoBehaviour
     Rigidbody rb;
     Camera cam;
     GameObject vehicle;
+    Plane probe_Plane;
+
+    public int deathCount;
 
     //STATE SYSTEMS
-    private Mover_State mover_State; // Rising, Falling, Grounded, Crouched
-    private Mover_State prevMover_State;
+    public Mover_State mover_State; // Rising, Falling, Grounded, Crouched
+    public Mover_State prevMover_State;
+
+    public bool horMoving;
+    public bool verMoving;
 
     //VECTORS
+    public float probeOffset;
+    public float groundDis;
+    Vector3 probeOffsetDir;
     Vector3 moverPos;
     Vector3 camPos;
     Vector3 startPos;
+    Vector3 probePos;
+    Vector3 probe_PlanePos;
+    public Vector3 moverCamPos; //THESE ARE A CUSTOM COORDINATE SYSTEM, convert pixels to 10,000x10,000 whole units, z is world dim relative to cam.
+    public Vector3 probeCamPos;
+    Vector3 bottomCamPos;
+    public Vector3 edgeBellowCamPos;
+    public Vector3 edgeBellowProPos;
     Vector3 GroundBoxCastSize = new Vector3(.01f,.05f,.001f);
     Vector3 ProbeBoxCastSize = new Vector3(.01f,.05f,.001f);
     Quaternion probeRotationA;
@@ -41,6 +57,9 @@ public class JumpManMover : MonoBehaviour
 
 
     //RAYS & RAYCASTHITS
+
+    Ray probeRay;
+    Ray edgeRay;
     RaycastHit hitR; //Reset
     RaycastHit hitC;
     RaycastHit hitA;
@@ -69,9 +88,11 @@ public class JumpManMover : MonoBehaviour
         vehicle = GameObject.Find("Vehicle");
         cam = GameObject.Find("Camera").GetComponent<Camera>();
         mover_State = Mover_State.Grounded;
-        probeRotationA = cam.transform.rotation * Quaternion.Euler(.05f,0f,0f);
-        probeRotationB = cam.transform.rotation * Quaternion.Euler(-.05f,0f,0f);
         Invoke("WaitTime", waitTime);
+        probe_PlanePos = new Vector3(cam.transform.position.x, cam.transform.position.y, cam.transform.position.z - 2);
+        probe_Plane = new Plane(cam.transform.forward, probe_PlanePos);
+        edgeBellowCamPos = new Vector3(cam.pixelWidth,cam.pixelHeight,1000);
+        probeCamPos = (cam.WorldToScreenPoint(probePos));
     }
     private void WaitTime()
     {
@@ -84,18 +105,25 @@ public class JumpManMover : MonoBehaviour
         MoverInput();
         UpdatePositions();
         GroundingProbe();
+        Grounding();
         StateConditions();
     }
 
     void Update()
     {
-        NavProbe(); //Used to evaluate the immediate conditions that the player can use to change jumpman pos, EX: moving up and down stairs, taking large steps or hops laterally or vertically
-        UpdateJumpManPos();
+        //NavProbe(); //Used to evaluate the immediate conditions that the player can use to change jumpman pos, EX: moving up and down stairs, taking large steps or hops laterally or vertically
+        //UpdateJumpManPos();
+        DeathCheck();
     }
+    
     private void MoverInput()
     {
         horMov = Input.GetAxisRaw("Horizontal");
         verMov = Input.GetAxisRaw("Vertical"); //will be used for NavProbe and conditional movements
+        if (horMov != 0){horMoving = true;}
+        if (verMov != 0){verMoving = true;}
+        else if (horMov == 0){horMoving = false; }
+        else if (verMov == 0){verMoving = false; }
 
         // TO DO use jumping tutorial to do press button trick. use value for Y Velocity
         // ADD Kyote time checks.    
@@ -103,115 +131,191 @@ public class JumpManMover : MonoBehaviour
     private void UpdatePositions()
     {
         camPos = cam.transform.position;
-        moverPos = gameObject.transform.position;
-        // TO DO Using available player inputs and conditions based on grounding states and probe conditions, translate to Mover movement.
-        //rb.velocity = new Vector3(horMov, verMov, rb.velocity.z) * speed; //CHANGE THIS TO ADD FORCE!
-        //rb.AddForce(horMov, verMov, 0);
-        rb.MovePosition(transform.position+(new Vector3(horMov, verMov*3, 0) * speed * Time.deltaTime));
+        
+        float enter = 0.0f;
+        probe_Plane.Raycast(edgeRay, out enter);
+        edgeBellowProPos = edgeRay.GetPoint(enter);
+     
+        rb.MovePosition( transform.position + edgeBellowProPos * speed * Time.deltaTime);
+        if (horMoving)
+        {
+        rb.MovePosition(transform.position+(new Vector3(horMov, verMov, 0) * speed * Time.deltaTime));
+        }
+
         moverPos = transform.position;
+        moverCamPos = cam.WorldToScreenPoint(moverPos);
         // TO DO convert this vector to be dependent on Vehicle transformations to adjust for vehicle rotation in world.
     }
     private void GroundingProbe()
     {
-        //FIRST, Is JumpMan's position invalid?    
-        if (Physics.Raycast(new Ray(camPos, (moverPos - camPos)), out hitR, drawDis, Respawn))// TO DO - change this to screen on point check within borders... something to do with comparing rotation angles.
+        int layerMask = 1 << 10;
+            layerMask = ~layerMask; // NOT USING BUILT IN LAYER NAMES. Rays detect all objects except layerMask 10 "Player"
+        
+        if(Mathf.Approximately(transform.position.x,edgeBellowCamPos.x)==false && mover_State == Mover_State.Falling)
+        {
+            
+            probePos = moverPos;
+            probeCamPos = cam.WorldToScreenPoint(probePos); //CURRENTLY OPPERATES AT PIXELWIDTH,PIXELHEIGHT
+            if (probeCamPos.y-edgeBellowCamPos.y <=5)
+            {
+                Debug.Log("STOP!");
+                mover_State = Mover_State.Grounded;
+            }
+            
+            //FIRST, Is JumpMan's position invalid?    
+            
+
+            probeOffset = 0;
+            probeRay = new Ray(camPos, (new Vector3(probePos.x, probePos.y - probeOffset, probePos.z) - camPos));
+            Physics.Raycast(probeRay, out hitC, drawDis, layerMask);
+            //Debug.DrawRay(camPos,(probeOffsetDir-camPos),Color.yellow,2);
+
+            while (Physics.Raycast(camPos, (new Vector3(probePos.x, probePos.y - probeOffset, probePos.z) - camPos), out hitC, drawDis, layerMask) == false && probeOffset <45)
+            {
+                probeOffset = probeOffset + 0.001f;
+                Debug.Log("probe is scanning...");
+                Debug.DrawRay(camPos, (new Vector3(probePos.x, probePos.y - probeOffset, probePos.z) - camPos), Color.white, 1);
+
+            }
+            if (hitC.collider.gameObject.layer == 8)
+            {
+                Debug.Log("probe found something");
+                Debug.DrawRay(camPos, (hitC.point - camPos), Color.magenta, 5);
+                edgeBellowCamPos = cam.WorldToScreenPoint(hitC.point);
+                edgeRay = new Ray(camPos, (hitC.point - camPos));
+            }
+            
+
+
+
+            //STORE moverPos relative to camview XY
+            //cast ray through moverPos, store hitStored for comparative
+            //rayRot = rayRot + .0001x
+            //cast same ray with rotation, compare hit to hitStored
+            //      while newhit.distance ~= hitStored.distance && normals are same, rayRot = rayRot + .0001x
+            //      if newhit.distance < hitStored.distance store hit in ANOTHER rayhit, rayRot = rayRot + .0001x
+            //          if next hit.distance ~= then found EDGE!
+            // STORE EDGE HIT AND relative camview XY, if MoverPos Y - edge hit Y < Threshold, STOP FALLING!
+            // COMPARE camview Y Values.
+            // Start falling if moverPos Y > threshold.
+
+
+
+
+            //bool cHasHit = Physics.BoxCast(moverPos, GroundBoxCastSize, (moverPos - camPos), out hitC, cam.transform.rotation, drawDis, layerMask);
+            //bool aHasHit = Physics.BoxCast(moverPos, ProbeBoxCastSize, (moverPos - camPos), out hitA, probeRotationA , drawDis, layerMask);
+            //LineCast that scans downward by rotating downward from cam.transform.rotation, at set increments. store new RayCastHit.hitDown1 if its an edge (DO MAGIC HERE!)
+            //send probe down again, compare hit to stored hit until a new unique edge is found, store hitDown2. (THESE NEED TO BE NEW STORED VALUES)
+            //once hitDown2=true, then let gravity take JumpMan until screenpoint is close to hitDown1 screenpoint for y! 
+
+            //Now do all this in reverse for rising? or do the same scan for above... probable should actually.
+            //      Ok so now that we've got all that scanning working and not buggy at all we can incorporate a nav function that does a similar version as above.
+
+            //bool bHasHit = Physics.BoxCast(moverPos, ProbeBoxCastSize, (moverPos - camPos), out hitB, cam.transform.rotation, drawDis, layerMask);
+
+            //bool probeHasHit = cHasHit || aHasHit || bHasHit;
+
+            // if (probeHasHit)
+            // {
+            //     Debug.Log("hit Something");
+
+
+
+            //     //SECOND, If the player doesn't want to land or be grounded. This check can dislodge them.
+            //     if (verMov < 0 && Input.GetMouseButtonDown(0)) // TO DO - set this mouse input to a value that times out.
+            //     {
+            //         mover_State = Mover_State.Falling; // This check affectively disables grounding probe if true.
+            //     }
+
+            //     //THIRD, should JumpMan be slow falling? If so, gravity velocity should be halved - simulating falling through an object but also reducing velocity to prepare to land.    
+            //     if (bHasHit)
+            //     {
+            //         if (hitB.collider.gameObject.layer == 8 && mover_State == Mover_State.Falling)
+            //         {
+            //             SlowFalling();
+            //             Debug.Log("Slowing!");
+            //         }
+            //     }
+
+            //     //FOURTH, Grounding
+            //     if (cHasHit)
+            //     {
+            //         Debug.Log(hitC.collider.gameObject.layer);
+            //         if (hitC.collider.gameObject.layer == 8 && mover_State == Mover_State.Falling
+            //         || hitC.collider.gameObject.layer == 8 && hitC.distance - hitB.distance < hitA.distance - hitC.distance //Does rayC hit a platform and is it the top of a ledge?
+            //         || hitC.collider.gameObject.layer == 8 && hitC.distance > hitA.distance && hitC.distance > hitB.distance) //JM on a Wire
+            //         {
+            //             mover_State = Mover_State.Grounded;
+            //             Debug.DrawRay(camPos, hitC.point - camPos, Color.red);
+            //         }
+            //     }
+
+            //     //FIFTH, if these probe conditions are ever met, he should be falling.
+            //     if (cHasHit == false)
+            //             //|| Mathf.Approximately(hitA.distance - hitC.distance, hitC.distance - hitB.distance))
+            //     {
+            //         Debug.Log("going to fall now...");
+            //         mover_State = Mover_State.Falling;
+            //     }
+
+
+            //         Debug.DrawRay(camPos, hitC.point - camPos, Color.yellow);
+            //         Debug.DrawRay(camPos, hitA.point - camPos, Color.yellow);
+            //         Debug.DrawRay(camPos, hitB.point - camPos, Color.yellow);
+
+
+            // }
+
+            // else
+            // {
+            //     mover_State = Mover_State.Falling;
+            //     Debug.DrawRay(camPos, moverPos - camPos, Color.red);
+            //     Debug.Log("No Hit.");
+            // }
+        }
+    }
+    private void Grounding()
+    {
+        groundDis = moverCamPos.y-edgeBellowCamPos.y;
+        if (groundDis <= 5 && mover_State == Mover_State.Falling)
+        {
+            Debug.Log("Landed!");
+            rb.velocity = new Vector3(rb.velocity.x, 0, rb.velocity.z);
+            mover_State = Mover_State.Grounded;
+        }
+        if (Mathf.Abs(groundDis) > 5 && mover_State == Mover_State.Grounded)
+        {
+            Debug.Log("Actually, we falling...");
+            mover_State = Mover_State.Falling;
+        }
+    }
+
+    private void DeathCheck()
+    {
+        if (moverCamPos.y <= 1)
         {
             gameObject.transform.position = startPos;
-            mover_State = Mover_State.Falling;
-        }
-
-        int layerMask = 1 << 10;
-        layerMask = ~layerMask; // NOT USING BUILT IN LAYER NAMES. Rays detect all objects except layerMask 10 "Player"
-
-        bool cHasHit = Physics.BoxCast(moverPos, GroundBoxCastSize, (moverPos - camPos), out hitC, cam.transform.rotation, drawDis, layerMask);
-        bool aHasHit = Physics.BoxCast(moverPos, ProbeBoxCastSize, (moverPos - camPos), out hitA, probeRotationA , drawDis, layerMask);
-        //LineCast that scans downward by rotating downward from cam.transform.rotation, at set increments. store new RayCastHit.hitDown1 if its an edge (DO MAGIC HERE!)
-        //send probe down again, compare hit to stored hit until a new unique edge is found, store hitDown2. (THESE NEED TO BE NEW STORED VALUES)
-        //once hitDown2=true, then let gravity take JumpMan until screenpoint is close to hitDown1 screenpoint for y! 
-
-        //Now do all this in reverse for rising? or do the same scan for above... probable should actually.
-        //      Ok so now that we've got all that scanning working and not buggy at all we can incorporate a nav function that does a similar version as above.
-
-        bool bHasHit = Physics.BoxCast(moverPos, ProbeBoxCastSize, (moverPos - camPos), out hitB, cam.transform.rotation, drawDis, layerMask);
-
-        bool probeHasHit = cHasHit || aHasHit || bHasHit;
-
-        if (probeHasHit)
-        {
-            Debug.Log("hit Something");
-
-            
-
-            //SECOND, If the player doesn't want to land or be grounded. This check can dislodge them.
-            if (verMov < 0 && Input.GetMouseButtonDown(0)) // TO DO - set this mouse input to a value that times out.
-            {
-                mover_State = Mover_State.Falling; // This check affectively disables grounding probe if true.
-            }
-
-            //THIRD, should JumpMan be slow falling? If so, gravity velocity should be halved - simulating falling through an object but also reducing velocity to prepare to land.    
-            if (bHasHit)
-            {
-                if (hitB.collider.gameObject.layer == 8 && mover_State == Mover_State.Falling)
-                {
-                    SlowFalling();
-                    Debug.Log("Slowing!");
-                }
-            }
-
-            //FOURTH, Grounding
-            if (cHasHit)
-            {
-                Debug.Log(hitC.collider.gameObject.layer);
-                if (hitC.collider.gameObject.layer == 8 && mover_State == Mover_State.Falling
-                || hitC.collider.gameObject.layer == 8 && hitC.distance - hitB.distance < hitA.distance - hitC.distance //Does rayC hit a platform and is it the top of a ledge?
-                || hitC.collider.gameObject.layer == 8 && hitC.distance > hitA.distance && hitC.distance > hitB.distance) //JM on a Wire
-                {
-                    mover_State = Mover_State.Grounded;
-                    Debug.DrawRay(camPos, hitC.point - camPos, Color.red);
-                }
-            }
-
-            //FIFTH, if these probe conditions are ever met, he should be falling.
-            if (cHasHit == false)
-                    //|| Mathf.Approximately(hitA.distance - hitC.distance, hitC.distance - hitB.distance))
-            {
-                Debug.Log("going to fall now...");
-                mover_State = Mover_State.Falling;
-            }
-
-            
-                Debug.DrawRay(camPos, hitC.point - camPos, Color.yellow);
-                Debug.DrawRay(camPos, hitA.point - camPos, Color.yellow);
-                Debug.DrawRay(camPos, hitB.point - camPos, Color.yellow);
-                
+            deathCount = deathCount + 1;
+            Debug.Log("Death to you!");
+            rb.velocity = new Vector3(rb.velocity.x, 0, rb.velocity.z);
             
         }
-
-        else
-        {
-            mover_State = Mover_State.Falling;
-            Debug.DrawRay(camPos, moverPos - camPos, Color.red);
-            Debug.Log("No Hit.");
-        }
     }
 
-    private void SlowFalling()
-    {
-        rb.AddRelativeForce(new Vector3(0, -rb.velocity.y / 2, 0));
-    }
-
-    private void NavProbe()
-    {
-        // TO DO Check for transitional conditions for hopping and stepping up/down.
-    }
-
-
-    private void UpdateJumpManPos()
-    {
-        // TO DO JumpMan position (JumpManPos) is always transformed along the probe.
-        //If Grounded, JumpManPos is set to hit pos.
-        //If NOT Grounded, JumpManPos is 1m from Camera. (Mover remains between and falls due to gravity, probe is 'scanning')
-    }
+    // private void SlowFalling()
+    // {
+    //     rb.AddRelativeForce(new Vector3(0, -rb.velocity.y / 2, 0));
+    // }
+    // private void NavProbe()
+    // {
+    //     // TO DO Check for transitional conditions for hopping and stepping up/down.
+    // }
+    // private void UpdateJumpManPos()
+    // {
+    //     // TO DO JumpMan position (JumpManPos) is always transformed along the probe.
+    //     //If Grounded, JumpManPos is set to hit pos.
+    //     //If NOT Grounded, JumpManPos is 1m from Camera. (Mover remains between and falls due to gravity, probe is 'scanning')
+    // }
 
     private void StateConditions()
     {
@@ -224,7 +328,7 @@ public class JumpManMover : MonoBehaviour
 
     }
 
-    private void MoverStates() //condition gravity and animations
+    private void MoverStates() //Send here to force MoverState Check/fix
     {
         if (mover_State == Mover_State.Grounded)
         {
@@ -236,16 +340,28 @@ public class JumpManMover : MonoBehaviour
             rb.useGravity = false;
             Debug.Log("current state is Crouched");
         }
-        if (mover_State == Mover_State.Rising)
-        {
-            rb.useGravity = true;
-            Debug.Log("current state is Rising");
-        }
+        // if (mover_State == Mover_State.Rising)
+        // {
+        //     rb.useGravity = true;
+        //     Debug.Log("current state is Rising");
+        // }
         if (mover_State == Mover_State.Falling)
         {
-            rb.useGravity = true;
+            //rb.useGravity = true;
             Debug.Log("current state is Falling");
         }
 
     }
+    // private void OnDrawGizmosSelected() {
+    //             //Gizmos.DrawLine(camPos,new Vector3(probePos.x,probePos.y-probeOffset,probePos.z));
+    //             if (hitC.collider.gameObject.layer==8)
+    //             {
+    //                 Gizmos.color = Color.green;
+    //             }
+    //             else
+    //             {
+    //             Gizmos.color = Color.yellow;
+    //             }
+    //             Gizmos.DrawLine(camPos,new Vector3(probePos.x,probePos.y-probeOffset,probePos.z));
+    // }
 }
